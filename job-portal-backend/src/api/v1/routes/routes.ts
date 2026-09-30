@@ -1,0 +1,18 @@
+export const API_ROUTES = {
+  AUTH: 'auth',
+  ORGANIZATION: 'org/:organizationId',
+  ORGANIZATION_SETTINGS: 'org/:organizationId/settings',
+  MEMBERS: 'org/:organizationId/members',
+  RECRUITERS: 'org/:organizationId/recruiters',
+  JOBS: 'org/:organizationId/jobs',
+  APPLICATIONS: 'org/:organizationId/applications',
+  INTERVIEWS: 'org/:organizationId/interviews',
+  OFFERS: 'org/:organizationId/offers',
+  CANDIDATES: 'org/:organizationId/candidates',
+  TOKENS: 'org/:organizationId/tokens',
+  BILLING: 'org/:organizationId/billing',
+  PAYMENTS: 'payments',
+  ANALYTICS: 'org/:organizationId/analytics',
+  NOTIFICATIONS: 'org/:organizationId/notifications',
+  MESSAGING: 'org/:organizationId/messaging',
+};

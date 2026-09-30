@@ -1,0 +1,412 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String               @id @default(uuid())
+  email          String               @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           String               // ORG_SUPER_ADMIN, ORG_ADMIN, RECRUITER, CANDIDATE, PLATFORM_SUPER_ADMIN, PLATFORM_ADMIN
+  organizationId String?
+  isActive       Boolean              @default(true)
+  emailVerified  Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  memberships    OrganizationMember[]
+  refreshTokens  RefreshToken[]
+  candidate      Candidate?
+  auditLogs      AuditLog[]
+
+  @@index([organizationId])
+  @@index([role])
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  description String?
+  website     String?
+  industry    String?
+  size        String?
+  location    String?
+  isVerified  Boolean  @default(true)
+  settings    String?  // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users             User[]
+  members           OrganizationMember[]
+  roles             OrganizationRole[]
+  jobs              Job[]
+  applications      Application[]
+  tokenWallet       TokenWallet?
+  tokenAllocations  TokenAllocation[]
+  tokenTransactions TokenTransaction[]
+  payments          Payment[]
+  invitations       Invitation[]
+
+  @@index([name])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  recruiterType  String?      // HR_RECRUITER, HIRING_MANAGER, TECH_RECRUITER
+  status         String       @default("ACTIVE") // ACTIVE, INVITED, INACTIVE
+  customRole     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationRole {
+  id             String           @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isSystem       Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions    RolePermission[]
+
+  @@index([organizationId])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  module      String
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id           String           @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role         OrganizationRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  organizationId String
+  email          String
+  role           String
+  recruiterType  String?
+  token          String       @unique
+  expiresAt      DateTime
+  status         String       @default("PENDING") // PENDING, ACCEPTED, EXPIRED
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Job {
+  id             String        @id @default(uuid())
+  organizationId String
+  createdById    String
+  title          String
+  description    String
+  department     String?
+  location       String
+  employmentType String        @default("FULL_TIME") // FULL_TIME, PART_TIME, CONTRACT, REMOTE
+  experienceMin  Int           @default(0)
+  experienceMax  Int           @default(10)
+  salaryMin      Int?
+  salaryMax      Int?
+  currency       String        @default("USD")
+  status         String        @default("OPEN") // OPEN, CLOSED, DRAFT
+  tokenCost      Int           @default(10)
+  viewsCount     Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  skills         JobSkill[]
+  applications   Application[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model JobSkill {
+  id        String   @id @default(uuid())
+  jobId     String
+  name      String
+
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+model Candidate {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  headline    String?
+  summary     String?
+  phone       String?
+  location    String?
+  skills      String?   // JSON list or comma-separated
+  experienceYrs Int     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profiles    Profile[]
+  resumes     Resume[]
+  applications Application[]
+
+  @@index([userId])
+}
+
+model Profile {
+  id          String    @id @default(uuid())
+  candidateId String
+  title       String
+  bio         String?
+  portfolioUrl String?
+  githubUrl   String?
+  linkedinUrl String?
+  createdAt   DateTime  @default(now())
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+}
+
+model Resume {
+  id          String    @id @default(uuid())
+  candidateId String
+  fileUrl     String
+  fileName    String
+  fileSize    Int
+  parsedText  String?
+  isDefault   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+}
+
+model Application {
+  id             String                     @id @default(uuid())
+  organizationId String
+  jobId          String
+  candidateId    String
+  status         String                     @default("Applied") // Applied, Shortlisted, Interview, Offer, Hired, Rejected
+  notes          String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job                        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate      Candidate                  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  history        ApplicationStatusHistory[]
+  interviews     Interview[]
+  offers         Offer[]
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([status])
+}
+
+model ApplicationStatusHistory {
+  id            String      @id @default(uuid())
+  applicationId String
+  fromStatus    String?
+  toStatus      String
+  changedById   String?
+  reason        String?
+  createdAt     DateTime    @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model Interview {
+  id            String      @id @default(uuid())
+  applicationId String
+  title         String
+  scheduledAt   DateTime
+  durationMins  Int         @default(45)
+  locationUrl   String?
+  interviewer   String
+  status        String      @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  feedback      String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model Offer {
+  id            String      @id @default(uuid())
+  applicationId String
+  jobTitle      String
+  salary        Int
+  currency      String      @default("USD")
+  startDate     DateTime
+  status        String      @default("PENDING") // PENDING, ACCEPTED, DECLINED, WITHDRAWN
+  terms         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model TokenPlan {
+  id          String   @id @default(uuid())
+  name        String   // Basic, Pro, Enterprise
+  tokens      Int
+  priceCents  Int
+  currency    String   @default("USD")
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model TokenWallet {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  balance        Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model TokenAllocation {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String       // recruiter user id
+  allocated      Int          @default(0)
+  used           Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model TokenTransaction {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?
+  type           String       // CREDIT, DEBIT, ALLOCATE, REFUND
+  amount         Int
+  reason         String
+  referenceId    String?
+  balanceAfter   Int
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+model Payment {
+  id             String       @id @default(uuid())
+  organizationId String
+  provider       String       // MOCK, RAZORPAY, STRIPE
+  transactionId  String       @unique
+  planName       String
+  amountCents    Int
+  tokensPurchased Int
+  status         String       @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  title          String
+  message        String
+  type           String   @default("INFO")
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  organizationId String
+  senderId       String
+  recipientId    String?
+  content        String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String?
+  userId         String?
+  action         String
+  resource       String
+  ipAddress      String?
+  details        String?  // JSON details
+  createdAt      DateTime @default(now())
+
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+}
